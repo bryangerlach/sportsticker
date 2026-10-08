@@ -7,4 +7,7 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - SECRET_KEY=your-production-super-secret-key-here
+      - CSRF_TRUSTED_ORIGINS=https://yourdomain.com,http://localhost:8000
+      - DEBUG=True
     restart: unless-stopped
