@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login // Sports Ticker</title>
+    <style>
+        body { 
+            background-color: #121212; 
+            color: #00ff00; 
+            font-family: monospace; 
+            padding: 20px; 
+            max-width: 400px; 
+            margin: 80px auto; 
+            box-sizing: border-box;
+        }
+        .login-box {
+            border: 1px dashed #00ff00;
+            padding: 25px;
+            background: #181818;
+        }
+        h2 {
+            margin-top: 0;
+            color: #00ff00;
+            text-align: center;
+            border-bottom: 1px dashed #444;
+            padding-bottom: 15px;
+        }
+        .errornote {
+            color: #ff5555;
+            background: #2a1212;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ff5555;
+            font-size: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #9090ff;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+        .btn-action {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: monospace;
+            width: 100%;
+            display: block;
+            text-align: center;
+        }
+        .btn-action:hover {
+            background: #00cc00;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-box">
+        <h2>// AUTH REQUIRED</h2>
+        
+        {% if form.errors %}
+            <p class="errornote">Your username and password didn't match. Please try again.</p>
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post">
+            {% csrf_token %}
+            
+            <label for="id_username">Username:</label>
+            {{ form.username }}
+            
+            <label for="id_password">Password:</label>
+            {{ form.password }}
+            
+            <input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn-action">Login &gt;&gt;</button>
+        </form>
+    </div>
+
+</body>
+</html>

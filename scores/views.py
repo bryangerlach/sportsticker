@@ -1,11 +1,10 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.text import slugify
 from .models import Team
-from .scraper import (
-    fetch_today_games, 
-    fetch_nhl_team, fetch_mls_team
-)
+from .scraper import fetch_today_games, fetch_nhl_team, fetch_mls_team, fetch_nhl_standings, fetch_mls_standings
 
+@login_required(login_url='/admin/login/')
 def dashboard_view(request):
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -25,7 +24,6 @@ def dashboard_view(request):
     team_dashboards = []
     
     for team in teams:
-        # Pass the team object so the scraper can check its URL and short name
         today_games = fetch_today_games(team)
         today_game = today_games[0] if today_games else None
         
@@ -44,6 +42,7 @@ def dashboard_view(request):
         'teams': team_dashboards,
     })
 
+@login_required(login_url='/admin/login/')
 def team_detail_view(request, team_slug):
     team = get_object_or_404(Team, slug=team_slug)
     if team.league == 'mls':
@@ -57,14 +56,13 @@ def team_detail_view(request, team_slug):
         'body_content': data['body_content']
     })
 
+@login_required(login_url='/admin/login/')
 def standings_view(request, league):
     if league == 'mls':
         url = "https://plaintextsports.com/mls/2026/standings"
-        from .scraper import fetch_mls_standings
         data = fetch_mls_standings(url)
     else:
         url = "https://plaintextsports.com/nhl/2026-2027/standings"
-        from .scraper import fetch_nhl_standings
         data = fetch_nhl_standings(url)
 
     return render(request, 'sports/standings.html', {
