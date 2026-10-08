@@ -1,10 +1,10 @@
 services:
   web:
-    build: .
+    image: ghcr.io/bryangerlach/sportsticker:latest
     ports:
       - "5555:5555"
     volumes:
-      - .:/app
+      - ./db:/app/db
     environment:
       - PYTHONUNBUFFERED=1
       - SECRET_KEY=your-production-super-secret-key-here
