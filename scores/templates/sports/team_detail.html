@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Team Full Details - Ticker</title>
+    <style>
+        /* Base fallback styles matching Plain Text Sports */
+        body { background-color: #121212; color: white; font-family: monospace; padding: 20px; max-width: 500px; margin: auto; }
+        .back-nav { display: block; margin-bottom: 20px; color: #9090ff; text-decoration: none; }
+        
+        /* Injected source styles */
+        {{ styles|safe }}
+    </style>
+</head>
+<body>
+    <a class="back-nav" href="{% url 'scores:dashboard' %}">&lt; Back to Dashboard</a>
+    
+    <div class="plaintext-wrapper">
+        {{ body_content|safe }}
+    </div>
+</body>
+</html>
