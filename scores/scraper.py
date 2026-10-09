@@ -147,11 +147,9 @@ def _fetch_team_page(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # Convert times to Central Time
         convert_time_tags(soup)
-
-        # Fix relative links so they point to plaintextsports.com instead of your app
         fix_external_links(soup)
+        inject_schedule_theme(soup)  # <-- Uses schedule styling
 
         for element in soup.find_all(text=True):
             if element.parent.name not in ['style', 'script', 'time']:
@@ -179,11 +177,144 @@ def _fetch_standings_page(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # Fix relative links on standings pages too
         fix_external_links(soup)
+        inject_standings_theme(soup)  # <-- Uses standings styling
         
         styles = "".join([style.string for style in soup.find_all("style") if style.string])
         body_content = soup.body.decode_contents() if soup.body else "Content unavailable"
         return {'styles': styles, 'body_content': body_content}
     except Exception as e:
         return {'styles': "", 'body_content': f"<p>Failed to load standings: {e}</p>"}
+
+def fetch_next_game(team):
+    try:
+        response = requests.get(team.url, headers=HEADERS)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        convert_time_tags(soup)
+        
+        if 'nhl' in team.url.lower():
+            body_text = soup.get_text()
+            lines = body_text.split("\n")
+            
+            found_upcoming = False
+            for line in lines:
+                line_str = line.strip()
+                if "Upcoming Games:" in line_str:
+                    found_upcoming = True
+                    continue
+                if found_upcoming:
+                    if line_str.startswith("G") and ("@" in line_str or "v" in line_str):
+                        return convert_to_local_time(line_str)
+                    if "Full Schedule:" in line_str:
+                        break
+            
+            # Fallback scan for NHL if header wasn't caught
+            for line in lines:
+                line_str = line.strip()
+                if line_str.startswith("G") and any(m in line_str for m in [" 10/", " 11/", " 12/", " 1/", " 2/", " 3/", " 4/"]):
+                    return convert_to_local_time(line_str)
+                    
+        # MLS or others possibly
+        else:
+            now = datetime.now(ZoneInfo("America/Chicago"))
+            future_games = []
+            
+            for time_tag in soup.find_all("time"):
+                dt_str = time_tag.get("datetime")
+                if not dt_str:
+                    continue
+                try:
+                    utc_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                    game_time_central = utc_dt.astimezone(ZoneInfo("America/Chicago"))
+                    
+                    if game_time_central > now:
+                        parent_line = time_tag.find_parent(["div", "p"])
+                        line_text = parent_line.get_text(separator=" ", strip=True) if parent_line else ""
+                        cleaned_line = " ".join(line_text.replace("|", " ").split())
+                        
+                        if cleaned_line:
+                            future_games.append((game_time_central, cleaned_line))
+                except Exception:
+                    continue
+                    
+            if future_games:
+                future_games.sort(key=lambda x: x[0])
+                return future_games[0][1]
+                
+    except Exception:
+        pass
+    return None
+
+def inject_schedule_theme(soup):
+    """Style injection for team schedule pages (centered, wider layout)."""
+    style_tag = soup.new_tag("style")
+    style_tag.string = """
+        body.dark, body {
+            background-color: #121212 !important;
+            color: #00ff00 !important;
+            max-width: 600px !important;
+            margin: 15px auto !important;
+            padding: 10px !important;
+            white-space: pre-wrap !important;
+            font-family: Courier, monospace !important;
+            font-size: 13px !important;
+        }
+        div, span, pre, p {
+            white-space: pre-wrap !important;
+            font-family: Courier, monospace !important;
+        }
+        .text-fg, a.text-fg, div, span, body {
+            color: #00ff00 !important;
+        }
+        .text-gray {
+            color: #88aa88 !important;
+        }
+        a.nav, .nav {
+            color: #9090ff !important;
+        }
+        .bg-odd {
+            background-color: #1a1a1a !important;
+        }
+    """
+    if soup.head:
+        soup.head.append(style_tag)
+    elif soup.body:
+        soup.body.insert(0, style_tag)
+
+def inject_standings_theme(soup):
+    """Style injection for standings pages (centered, full width without side-scrolling)."""
+    style_tag = soup.new_tag("style")
+    style_tag.string = """
+        body.dark, body {
+            background-color: #121212 !important;
+            color: #00ff00 !important;
+            max-width: 600px !important;
+            margin: 15px auto !important;
+            padding: 10px !important;
+            font-family: Courier, monospace !important;
+        }
+        /* Allow natural wrapping so it fits the screen width nicely */
+        div, span, pre, p {
+            white-space: pre-wrap !important;
+            font-family: Courier, monospace !important;
+        }
+        .text-fg, a.text-fg, div, span, body {
+            color: #00ff00 !important;
+        }
+        .text-gray {
+            color: #88aa88 !important;
+        }
+        a.nav, .nav {
+            color: #9090ff !important;
+        }
+        /* Keep alternating row banding */
+        .bg-odd {
+            background-color: #1a1a1a !important;
+        }
+    """
+    if soup.head:
+        soup.head.append(style_tag)
+    elif soup.body:
+        soup.body.insert(0, style_tag)

@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.text import slugify
 from .models import Team
-from .scraper import fetch_today_games, fetch_nhl_team, fetch_mls_team, fetch_nhl_standings, fetch_mls_standings
+from .scraper import fetch_today_games, fetch_nhl_team, fetch_mls_team, fetch_nhl_standings, fetch_mls_standings, fetch_next_game
 
 @login_required(login_url='/admin/login/')
 def dashboard_view(request):
@@ -27,15 +27,15 @@ def dashboard_view(request):
         today_games = fetch_today_games(team)
         today_game = today_games[0] if today_games else None
         
-        if team.league == 'mls':
-            team_data = fetch_mls_team(team.url)
-        else:
-            team_data = fetch_nhl_team(team.url)
+        # Fetch the next upcoming game if no game is today
+        next_game = None
+        if not today_game:
+            next_game = fetch_next_game(team)
 
         team_dashboards.append({
             'team': team,
             'today_game': today_game,
-            'team_data': team_data
+            'next_game': next_game,
         })
 
     return render(request, 'sports/dashboard.html', {

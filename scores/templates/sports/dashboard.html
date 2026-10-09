@@ -91,21 +91,26 @@
             <h2>{{ item.team.name }}</h2>
             
             {% if item.today_game %}
-                <p class="badge">🚨 GAME TODAY:</p>
+                <p class="badge" style="color: #00ff00;">🚨 GAME TODAY:</p>
                 <div class="game-line">
                     <a class="game-link" href="{{ item.today_game.url }}" target="_blank" style="color: inherit; text-decoration: none;">
-                        
                         <div style="background: #111; border: 1px solid #333; padding: 14px; font-family: monospace;">
                             {% for line in item.today_game.lines %}
                                 <div style="color: #00ff00; margin-bottom: 6px; font-weight: bold; font-size: 14px;">{{ line }}</div>
                             {% endfor %}
                         </div>
-
                         <span style="color: #9090ff; display: block; margin-top: 8px; font-weight: bold; font-size: 0.9em;">&gt;&gt; Open Live Box Score</span>
                     </a>
                 </div>
+            {% elif item.next_game %}
+                <p class="badge" style="color: #ffff00;">📅 NEXT GAME:</p>
+                <div class="game-line">
+                    <div style="background: #111; border: 1px solid #333; padding: 14px; font-family: monospace; color: #ffff00; font-weight: bold; font-size: 14px;">
+                        {{ item.next_game }}
+                    </div>
+                </div>
             {% else %}
-                <p class="badge">📅 NO GAME TODAY</p>
+                <p class="badge">📅 NO GAME SCHEDULED</p>
             {% endif %}
 
             <a class="detail-link" href="{% url 'scores:team_detail' team_slug=item.team.slug %}">View Full Schedule & Details &gt;&gt;</a>
