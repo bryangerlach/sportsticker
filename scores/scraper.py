@@ -63,10 +63,8 @@ def convert_to_local_time(line_text):
 def fetch_today_games(team):
     if 'mls' in team.url.lower():
         url = "https://plaintextsports.com/mls/"
-        league_type = 'mls'
     else:
         url = "https://plaintextsports.com/nhl/"
-        league_type = 'nhl'
         
     try:
         response = requests.get(url, headers=HEADERS)
@@ -76,55 +74,74 @@ def fetch_today_games(team):
         convert_time_tags(soup)
         
         games = []
-        if league_type == 'mls':
-            containers = soup.select("div[id]")
-        else:
-            containers = soup.select("a.text-fg.no-underline")
+        # Grab BOTH scheduled links (NHL/MLS) AND active game divs (MLS)
+        containers = soup.select("a.text-fg.no-underline, div[id]")
             
         for container in containers:
-            if team.short_name.upper() in container.get_text().upper():
-                
-                for br in container.find_all("br"):
-                    br.replace_with("\n")
-                
-                for span in container.find_all("span"):
-                    if not span.get_text(strip=True):
-                        span.replace_with("")
-                
-                raw_text = container.get_text()
+            # Skip page layout divs that aren't games
+            container_id = container.get("id", "")
+            if container.name == "div" and ("-" not in container_id or container_id in ["page-loaded-wrapper", "data-loaded-wrapper", "full-width-line"]):
+                continue
+
+            # Use a double space separator so fused text like "Toronto FCCF Montréal" splits correctly
+            container_text = container.get_text(separator="  ").upper()
+            
+            if team.short_name.upper() in container_text or team.name.upper() in container_text:
                 
                 cleaned_lines = []
-                for line in raw_text.split("\n"):
-                    if "+" in line and "-" in line:
-                        continue
-                    
-                    line_no_pipes = line.replace("|", "")
-                    cleaned = line_no_pipes.strip()
-                    if not cleaned:
-                        continue
-                        
-                    converted_line = convert_to_local_time(cleaned)
-                    
-                    parts = [p.strip() for p in converted_line.split("  ") if p.strip()]
-                    
-                    if len(parts) > 2:
-                        team_name = parts[0]
-                        score = parts[-1]
-                        extras = " ".join(parts[1:-1])
-                        normalized_line = f"{team_name:<6} ({extras}){' ' * 10:>5} {score}"
-                        cleaned_lines.append(normalized_line)
-                    elif len(parts) == 2 and not any(word in parts[0] for word in ["End", "1st", "2nd", "3rd", "OT", "Final"]):
-                        cleaned_lines.append(f"{parts[0]:<15} {parts[1]}")
-                    else:
-                        cleaned_lines.append(converted_line)
                 
-                if league_type == 'mls':
-                    if "-" in container.get('id', ''):
-                        game_url = f"https://plaintextsports.com/mls/{datetime.now().strftime('%Y-%m-%d')}/#{container.get('id')}"
+                # Handle LIVE or FINISHED MLS games (Complex DIV structure)
+                if container.name == "div":
+                    game_url = f"https://plaintextsports.com/mls/#{container_id}"
+                    
+                    # Extract just the top two lines (Teams and Score) from the justified layout
+                    justified_lines = container.select(".justified-line")
+                    if len(justified_lines) >= 2:
+                        teams = justified_lines[0].get_text(separator=" - ", strip=True)
+                        score_status = justified_lines[1].get_text(separator=" ", strip=True)
+                        
+                        # Clean up the output for the dashboard
+                        cleaned_lines.append(teams)
+                        cleaned_lines.append(f"Score: {score_status}")
                     else:
-                        continue
+                        # Fallback
+                        cleaned_lines.append("Live Game In Progress")
+                        
+                # Handle SCHEDULED games (Anchor tag structure)
                 else:
                     game_url = "https://plaintextsports.com" + container.get('href', '')
+                    
+                    for br in container.find_all("br"):
+                        br.replace_with("\n")
+                    
+                    for span in container.find_all("span"):
+                        if not span.get_text(strip=True):
+                            span.replace_with("")
+                    
+                    raw_text = container.get_text()
+                    
+                    for line in raw_text.split("\n"):
+                        if "+" in line and "-" in line:
+                            continue
+                        
+                        line_no_pipes = line.replace("|", "")
+                        cleaned = line_no_pipes.strip()
+                        if not cleaned:
+                            continue
+                            
+                        converted_line = convert_to_local_time(cleaned)
+                        parts = [p.strip() for p in converted_line.split("  ") if p.strip()]
+                        
+                        if len(parts) > 2:
+                            team_name = parts[0]
+                            score = parts[-1]
+                            extras = " ".join(parts[1:-1])
+                            normalized_line = f"{team_name:<6} ({extras}){' ' * 10:>5} {score}"
+                            cleaned_lines.append(normalized_line)
+                        elif len(parts) == 2 and not any(word in parts[0] for word in ["End", "1st", "2nd", "3rd", "OT", "Final", "Half"]):
+                            cleaned_lines.append(f"{parts[0]:<15} {parts[1]}")
+                        else:
+                            cleaned_lines.append(converted_line)
                 
                 games.append({
                     'url': game_url,
