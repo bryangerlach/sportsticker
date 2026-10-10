@@ -74,40 +74,29 @@ def fetch_today_games(team):
         convert_time_tags(soup)
         
         games = []
-        # Grab BOTH scheduled links (NHL/MLS) AND active game divs (MLS)
         containers = soup.select("a.text-fg.no-underline, div[id]")
             
         for container in containers:
-            # Skip page layout divs that aren't games
             container_id = container.get("id", "")
             if container.name == "div" and ("-" not in container_id or container_id in ["page-loaded-wrapper", "data-loaded-wrapper", "full-width-line"]):
                 continue
 
-            # Use a double space separator so fused text like "Toronto FCCF Montréal" splits correctly
             container_text = container.get_text(separator="  ").upper()
             
             if team.short_name.upper() in container_text or team.name.upper() in container_text:
-                
                 cleaned_lines = []
                 
-                # Handle LIVE or FINISHED MLS games (Complex DIV structure)
                 if container.name == "div":
                     game_url = f"https://plaintextsports.com/mls/#{container_id}"
-                    
-                    # Extract just the top two lines (Teams and Score) from the justified layout
                     justified_lines = container.select(".justified-line")
                     if len(justified_lines) >= 2:
                         teams = justified_lines[0].get_text(separator=" - ", strip=True)
                         score_status = justified_lines[1].get_text(separator=" ", strip=True)
-                        
-                        # Clean up the output for the dashboard
                         cleaned_lines.append(teams)
                         cleaned_lines.append(f"Score: {score_status}")
                     else:
-                        # Fallback
                         cleaned_lines.append("Live Game In Progress")
                         
-                # Handle SCHEDULED games (Anchor tag structure)
                 else:
                     game_url = "https://plaintextsports.com" + container.get('href', '')
                     
@@ -136,7 +125,8 @@ def fetch_today_games(team):
                             team_name = parts[0]
                             score = parts[-1]
                             extras = " ".join(parts[1:-1])
-                            normalized_line = f"{team_name:<6} ({extras}){' ' * 10:>5} {score}"
+                            # Place extras at the end so scores align perfectly
+                            normalized_line = f"{team_name:<15} {score} ({extras})"
                             cleaned_lines.append(normalized_line)
                         elif len(parts) == 2 and not any(word in parts[0] for word in ["End", "1st", "2nd", "3rd", "OT", "Final", "Half"]):
                             cleaned_lines.append(f"{parts[0]:<15} {parts[1]}")
