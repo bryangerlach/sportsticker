@@ -90,10 +90,23 @@ def fetch_today_games(team):
                     game_url = f"https://plaintextsports.com/mls/#{container_id}"
                     justified_lines = container.select(".justified-line")
                     if len(justified_lines) >= 2:
-                        teams = justified_lines[0].get_text(separator=" - ", strip=True)
-                        score_status = justified_lines[1].get_text(separator=" ", strip=True)
+                        # Put a clean " vs " between the team names
+                        teams = justified_lines[0].get_text(separator=" vs ", strip=True)
+                        score_raw = justified_lines[1].get_text(separator=" ", strip=True)
+                        
+                        # Use regex to remove team records (e.g., 12-8-7) from the line
+                        clean_score = re.sub(r'\b\d{1,2}-\d{1,2}-\d{1,2}\b', '', score_raw).strip()
+                        clean_score = re.sub(r'\s+', ' ', clean_score)
+                        
+                        # Parse the "0 - 1' - 0" format into "0 - 0 [1']"
+                        parts = [p.strip() for p in clean_score.split('-')]
+                        if len(parts) == 3:
+                            formatted_score = f"{parts[0]} - {parts[2]}  [{parts[1]}]"
+                        else:
+                            formatted_score = clean_score
+                            
                         cleaned_lines.append(teams)
-                        cleaned_lines.append(f"Score: {score_status}")
+                        cleaned_lines.append(f"Score: {formatted_score}")
                     else:
                         cleaned_lines.append("Live Game In Progress")
                         
@@ -125,7 +138,6 @@ def fetch_today_games(team):
                             team_name = parts[0]
                             score = parts[-1]
                             extras = " ".join(parts[1:-1])
-                            # Place extras at the end so scores align perfectly
                             normalized_line = f"{team_name:<15} {score} ({extras})"
                             cleaned_lines.append(normalized_line)
                         elif len(parts) == 2 and not any(word in parts[0] for word in ["End", "1st", "2nd", "3rd", "OT", "Final", "Half"]):
