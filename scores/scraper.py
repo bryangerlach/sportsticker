@@ -88,27 +88,62 @@ def fetch_today_games(team):
                 
                 if container.name == "div":
                     game_url = f"https://plaintextsports.com/mls/#{container_id}"
-                    justified_lines = container.select(".justified-line")
-                    if len(justified_lines) >= 2:
-                        # Put a clean " vs " between the team names
-                        teams = justified_lines[0].get_text(separator=" vs ", strip=True)
-                        score_raw = justified_lines[1].get_text(separator=" ", strip=True)
+                    
+                    # 1. Team Names
+                    team_links = container.select(".justified-line a")
+                    t1 = team_links[0].get_text(strip=True) if len(team_links) > 0 else "Home"
+                    t2 = team_links[1].get_text(strip=True) if len(team_links) > 1 else "Away"
+                    
+                    # 2. Score & Clock
+                    clock = ""
+                    score = ""
+                    justified = container.select(".justified-line")
+                    if len(justified) >= 2:
+                        score_spans = justified[1].find_all("span", recursive=False)
+                        middle_text = score_spans[1].get_text(" ", strip=True) if len(score_spans) >= 2 else justified[1].get_text(" ", strip=True)
                         
-                        # Use regex to remove team records (e.g., 12-8-7) from the line
-                        clean_score = re.sub(r'\b\d{1,2}-\d{1,2}-\d{1,2}\b', '', score_raw).strip()
-                        clean_score = re.sub(r'\s+', ' ', clean_score)
-                        
-                        # Parse the "0 - 1' - 0" format into "0 - 0 [1']"
-                        parts = [p.strip() for p in clean_score.split('-')]
-                        if len(parts) == 3:
-                            formatted_score = f"{parts[0]} - {parts[2]}  [{parts[1]}]"
+                        # Match pattern: <score1> - <clock> - <score2> (or without extra dash)
+                        m = re.search(r'(\d+)\s*-\s*(.+?)(?:\s*-\s*|\s+)(\d+)$', middle_text)
+                        if m:
+                            s1 = m.group(1).strip()
+                            clock = m.group(2).strip().strip("-").strip()
+                            s2 = m.group(3).strip()
+                            score = f"{s1} - {s2}"
                         else:
-                            formatted_score = clean_score
+                            score = middle_text
                             
-                        cleaned_lines.append(teams)
-                        cleaned_lines.append(f"Score: {formatted_score}")
-                    else:
-                        cleaned_lines.append("Live Game In Progress")
+                    # 3. Events
+                    events = []
+                    # Remove headers
+                    for rel in container.select(".relative"):
+                        rel.extract()
+                        
+                    for raw in container.get_text().splitlines():
+                        line = raw.strip("\r\n|").rstrip()
+                        if not line or set(line.strip()).issubset({"+", "-"}):
+                            continue
+                            
+                        clean_text = line.strip()
+                        clean_text = clean_text.replace("#yellow", "(Y)").replace("#2nd yellow", "(YY)").replace("#red", "(R)")
+                        clean_text = " ".join(clean_text.split())
+                        
+                        # If it had leading spaces, it belongs to Team 2 (right)
+                        is_right = line.startswith("    ") or line.startswith("\t")
+                        events.append({
+                            'text': clean_text,
+                            'align': 'right' if is_right else 'left'
+                        })
+                        
+                    games.append({
+                        'url': game_url,
+                        'is_structured_mls': True,
+                        'team_left': t1,
+                        'team_right': t2,
+                        'clock': clock,
+                        'score': score,
+                        'events': events,
+                        'lines': []
+                    })
                         
                 else:
                     game_url = "https://plaintextsports.com" + container.get('href', '')
@@ -121,34 +156,55 @@ def fetch_today_games(team):
                             span.replace_with("")
                     
                     raw_text = container.get_text()
+                    lines = []
                     
                     for line in raw_text.split("\n"):
                         if "+" in line and "-" in line:
                             continue
-                        
-                        line_no_pipes = line.replace("|", "")
-                        cleaned = line_no_pipes.strip()
-                        if not cleaned:
-                            continue
-                            
-                        converted_line = convert_to_local_time(cleaned)
-                        parts = [p.strip() for p in converted_line.split("  ") if p.strip()]
-                        
-                        if len(parts) > 2:
-                            team_name = parts[0]
-                            score = parts[-1]
-                            extras = " ".join(parts[1:-1])
-                            normalized_line = f"{team_name:<15} {score} ({extras})"
-                            cleaned_lines.append(normalized_line)
-                        elif len(parts) == 2 and not any(word in parts[0] for word in ["End", "1st", "2nd", "3rd", "OT", "Final", "Half"]):
-                            cleaned_lines.append(f"{parts[0]:<15} {parts[1]}")
-                        else:
-                            cleaned_lines.append(converted_line)
-                
-                games.append({
-                    'url': game_url,
-                    'lines': cleaned_lines
-                })
+                        clean = line.replace("|", "").strip()
+                        if clean:
+                            lines.append(convert_to_local_time(clean))
+
+                    # Parse into structured NHL format if there are 3 game lines (Status, Team 1, Team 2)
+                    if len(lines) >= 3:
+                        status_line = lines[0]
+                        team_lines_formatted = []
+
+                        for team_row in lines[1:3]:
+                            parts = [p.strip() for p in team_row.split() if p.strip()]
+                            if len(parts) >= 2:
+                                team_code = parts[0]
+                                # Check if last part is the score
+                                if parts[-1].isdigit():
+                                    score_val = parts[-1]
+                                    extras = " ".join(parts[1:-1])
+                                elif len(parts) >= 3 and parts[1].isdigit():
+                                    score_val = parts[1]
+                                    extras = " ".join(parts[2:])
+                                else:
+                                    score_val = parts[1]
+                                    extras = " ".join(parts[2:])
+                                
+                                formatted = f"{team_code} {score_val}"
+                                if extras:
+                                    formatted += f" {extras}"
+                                team_lines_formatted.append(formatted)
+                            else:
+                                team_lines_formatted.append(team_row)
+
+                        games.append({
+                            'url': game_url,
+                            'is_structured_nhl': True,
+                            'status_line': status_line,
+                            'team1_line': team_lines_formatted[0] if len(team_lines_formatted) > 0 else '',
+                            'team2_line': team_lines_formatted[1] if len(team_lines_formatted) > 1 else '',
+                            'lines': lines
+                        })
+                    else:
+                        games.append({
+                            'url': game_url,
+                            'lines': lines
+                        })
                 
         return games
     except Exception as e:
