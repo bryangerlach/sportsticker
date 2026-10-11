@@ -115,11 +115,37 @@
                             <div style="border-top: 1px dashed #333; margin: 8px 0;"></div>
                             
                             <!-- Events Row: Left aligned or Right aligned -->
-                            {% for ev in item.today_game.events %}
-                                <div style="text-align: {{ ev.align }}; font-size: 13px; margin: 2px 0;">
-                                    {% if ev.align == 'left' %}&lt; {% endif %}{{ ev.text }}{% if ev.align == 'right' %} &gt;{% endif %}
+                            <div style="margin-top: 6px;">
+                                {% for ev in item.today_game.events %}
+                                    <div style="text-align: {{ ev.align }}; font-size: 12px; margin: 3px 0; font-family: Courier, monospace;">
+                                        {% if ev.align == 'left' %}
+                                            {% if ev.type == 'goal' %}
+                                                <span style="color: #50da50; font-weight: bold;">⚽ {{ ev.text }}</span>
+                                            {% elif ev.type == 'assist' %}
+                                                <span style="color: #888888; font-style: italic; margin-left: 14px;">↳ {{ ev.text }}</span>
+                                            {% elif ev.type == 'yellow_card' %}
+                                                <span style="color: #bfa100;">🟨 {{ ev.text }}</span>
+                                            {% elif ev.type == 'second_yellow' or ev.type == 'red_card' %}
+                                                <span style="color: #ff5050; font-weight: bold;">🟥 {{ ev.text }}</span>
+                                            {% else %}
+                                                <span>{{ ev.text }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            {% if ev.type == 'goal' %}
+                                                <span style="color: #50da50; font-weight: bold;">{{ ev.text }} ⚽</span>
+                                            {% elif ev.type == 'assist' %}
+                                                <span style="color: #888888; font-style: italic; margin-right: 14px;">{{ ev.text }} ↲</span>
+                                            {% elif ev.type == 'yellow_card' %}
+                                                <span style="color: #bfa100;">{{ ev.text }} 🟨</span>
+                                            {% elif ev.type == 'second_yellow' or ev.type == 'red_card' %}
+                                                <span style="color: #ff5050; font-weight: bold;">{{ ev.text }} 🟥</span>
+                                            {% else %}
+                                                <span>{{ ev.text }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
                                 </div>
-                            {% endfor %}
                         </div>
                     </a>
                 {% elif item.today_game.is_structured_nhl %}

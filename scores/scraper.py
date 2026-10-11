@@ -114,7 +114,6 @@ def fetch_today_games(team):
                             
                     # 3. Events
                     events = []
-                    # Remove headers
                     for rel in container.select(".relative"):
                         rel.extract()
                         
@@ -124,14 +123,29 @@ def fetch_today_games(team):
                             continue
                             
                         clean_text = line.strip()
-                        clean_text = clean_text.replace("#yellow", "(Y)").replace("#2nd yellow", "(YY)").replace("#red", "(R)")
+                        is_right = line.startswith("    ") or line.startswith("\t")
+                        
+                        # Determine event type
+                        if "#red" in clean_text:
+                            ev_type = "red_card"
+                            clean_text = clean_text.replace("#red", "").strip()
+                        elif "#2nd yellow" in clean_text:
+                            ev_type = "second_yellow"
+                            clean_text = clean_text.replace("#2nd yellow", "").strip()
+                        elif "#yellow" in clean_text:
+                            ev_type = "yellow_card"
+                            clean_text = clean_text.replace("#yellow", "").strip()
+                        elif "assist by" in clean_text.lower():
+                            ev_type = "assist"
+                        else:
+                            ev_type = "goal"
+                            
                         clean_text = " ".join(clean_text.split())
                         
-                        # If it had leading spaces, it belongs to Team 2 (right)
-                        is_right = line.startswith("    ") or line.startswith("\t")
                         events.append({
                             'text': clean_text,
-                            'align': 'right' if is_right else 'left'
+                            'align': 'right' if is_right else 'left',
+                            'type': ev_type
                         })
                         
                     games.append({
