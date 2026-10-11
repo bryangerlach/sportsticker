@@ -206,14 +206,24 @@ def fetch_today_games(team):
                             else:
                                 team_lines_formatted.append(team_row)
 
+                        t1_code = ""
+                        t2_code = ""
+                        if len(team_lines_formatted) >= 2:
+                            t1_code = team_lines_formatted[0].split()[0]
+                            t2_code = team_lines_formatted[1].split()[0]
+                        
+                        nhl_events = fetch_nhl_game_events(game_url, team1_code=t1_code, team2_code=t2_code)
+
                         games.append({
                             'url': game_url,
                             'is_structured_nhl': True,
                             'status_line': status_line,
                             'team1_line': team_lines_formatted[0] if len(team_lines_formatted) > 0 else '',
                             'team2_line': team_lines_formatted[1] if len(team_lines_formatted) > 1 else '',
+                            'events': nhl_events,
                             'lines': lines
                         })
+
                     else:
                         games.append({
                             'url': game_url,
@@ -223,6 +233,64 @@ def fetch_today_games(team):
         return games
     except Exception as e:
         return []
+
+def fetch_nhl_game_events(game_url, team1_code="DAL", team2_code="PIT"):
+    """Fetches exact goal scorers along with period and time from Plain Text Sports."""
+    events = []
+    try:
+        resp = requests.get(game_url, headers=HEADERS, timeout=5)
+        if not resp.ok:
+            return events
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        for grid in soup.select(".period-plays"):
+            # Direct children are either <div> or <b><div>...</div></b>
+            children = list(grid.find_all(recursive=False))
+
+            for i, child in enumerate(children):
+                text = child.get_text(strip=True)
+
+                if " scores " in text or " scores goal " in text:
+                    # Look at the previous sibling element for the period and clock
+                    time_stamp = ""
+                    if i > 0:
+                        prev_text = children[i - 1].get_text(strip=True)
+                        # Plain Text Sports timestamps look like "P1  09:39" or "P3  18:03"
+                        m_time = re.search(r'(P\d|OT\d?)\s*(\d{1,2}:\d{2})', prev_text)
+                        if m_time:
+                            time_stamp = f"{m_time.group(1)} {m_time.group(2)}"
+                        else:
+                            time_stamp = prev_text
+
+                    # Extract "Player Name (TEAM) scored"
+                    match = re.match(r"^([^(]+?\s*\([A-Z]{2,4}\))\s+scores(?:\s+goal)?", text)
+                    if match:
+                        scorer_label = f"{match.group(1)} scored"
+                    else:
+                        scorer_part = text.split("scores")[0].strip()
+                        scorer_label = f"{scorer_part} scored"
+
+                    # Combine timestamp and scorer
+                    if time_stamp:
+                        display_text = f"{time_stamp} - {scorer_label}"
+                    else:
+                        display_text = scorer_label
+
+                    # Determine alignment by team code
+                    is_right = False
+                    if f"({team2_code.upper()})" in scorer_label.upper():
+                        is_right = True
+                    elif f"({team1_code.upper()})" in scorer_label.upper():
+                        is_right = False
+
+                    events.append({
+                        'text': display_text,
+                        'align': 'right' if is_right else 'left'
+                    })
+    except Exception:
+        pass
+    return events
 
 def fetch_nhl_team(url):
     return _fetch_team_page(url)
